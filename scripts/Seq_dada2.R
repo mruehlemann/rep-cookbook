@@ -20,21 +20,21 @@ set.seed(12345)
 ### per each sample are generated (Using LotuS).
 
 ### Set directory and files
-path <- "~/../../data/DIndex_MiSeq_Runs/*year*/***RUN_NAME***/demultiplexed/" # CHANGE to the directory containing your demultiplexed R1 and R2 fastq files
+path <- getwd() # CHANGE to the directory containing your demultiplexed R1 and R2 fastq files
 fns <- list.files(path)
 #fns
 
 ####################
 ### load your data
 ####################
-fastqs <- fns[grepl(".fq.gz$", fns)]
+fastqs <- fns[grepl(".fastq.gz$", fns)]
 fastqs <- sort(fastqs) # Sort ensures forward/reverse reads are in same order
 ### make sure that R1 is for forward read and R2 for reverse
 
-fnFs <- fastqs[grepl(".1.fq.gz", fastqs)] ## Just the forward read files
-fnRs <- fastqs[grepl(".2.fq.gz", fastqs)] ## Just the reverse read files
+fnFs <- fastqs[grepl("R1_001.fastq.gz", fastqs)] ## Just the forward read files
+fnRs <- fastqs[grepl("R2_001.fastq.gz", fastqs)] ## Just the reverse read files
 ## Get sample names from the first part of the forward read filenames
-sample.names <- sapply(strsplit(fnFs, ".1.fq.gz"), `[`, 1) ## check if it is 1 or 2
+sample.names <- sapply(strsplit(fnFs, "_R1_001.fastq.gz"), `[`, 1) ## check if it is 1 or 2
 
 ## Fully specify the path for the fnFs and fnRs
 fnFs <- file.path(path, fnFs)
@@ -58,10 +58,11 @@ filtRs <- file.path(filt_path, paste0(sample.names, "_R_filt.fastq.gz"))
 
 ## Filter  the forward and reverse reads:
 ## Important to remove primers and low quality regions
-out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(130,200), ## Different settings tried,these are good for current primer constructs for MiSeq and HiSeq
-                     trimLeft=c(30, 30),
-                     maxN=0, maxEE=c(2,2), truncQ=11, rm.phix=TRUE,
-                     compress=TRUE, multithread=TRUE) #
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(200,150), ## Different settings tried,these are good for current primer constructs for MiSeq and HiSeq
+                     trimLeft=c(5, 5),
+                     maxN=0, maxEE=c(2,2), truncQ=5, rm.phix=TRUE,
+                     compress=TRUE, multithread=10) #
+
 head(out)
 
 ## Examine quality profiles of filtered reads
@@ -75,9 +76,9 @@ dev.off()
 ## Learn the Error Rates
 #########################
 ## Learn forward error rates
-errF <- learnErrors(filtFs, nread=1e6, multithread=TRUE) ## variable but this is the minimum number of reads
+errF <- learnErrors(filtFs, nread=1e6, multithread=10) ## variable but this is the minimum number of reads
 ## Learn reverse error rates
-errR <- learnErrors(filtRs, nread=1e6, multithread=TRUE) ## variable but this is the minimum number of reads
+errR <- learnErrors(filtRs, nread=1e6, multithread=10) ## variable but this is the minimum number of reads
 ## Sample inference and merger of paired-end reads
 mergers <- vector("list", length(sample.names))
 names(mergers) <- sample.names
@@ -109,14 +110,14 @@ names(derepRs) <- sample.names
 ####################
 ## Apply the core sequence-variant inference algorithm to the dereplicated data
 ## Infer the sequence variants in each sample
-dadaFs <- dada(derepFs, err=errF, multithread=TRUE)
-dadaRs <- dada(derepRs, err=errR, multithread=TRUE)
+dadaFs <- dada(derepFs, err=errF, multithread=10)
+dadaRs <- dada(derepRs, err=errR, multithread=10)
 
 ## Inspect the dada-class object returned by dada
 dadaFs[[1]]
 
 ## Merge the denoised forward and reverse reads
-mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
+mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=10)
 ## Inspect the merger data.frame from the first sample
 head(mergers[[1]])
 
@@ -136,7 +137,7 @@ table(nchar(getSequences(seqtab)))
 ## Remove chimeras
 ###################
 ## Remove chimeric sequences:
-seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=10, verbose=TRUE)
 dim(seqtab.nochim)
 
 sum(seqtab.nochim)/sum(seqtab)
@@ -156,7 +157,7 @@ head(track)
 ###################
 ## Assign taxonomy
 ###################
-taxHS <- assignTaxonomy(seqtab.nochim, "~/opt/dada2_db/rdp_train_set_16.fa.gz", multithread=TRUE) ## CHANGE to directory and pertinent database
+taxHS <- assignTaxonomy(seqtab.nochim, "/home/sukmb276/Isilon/references/dada2_ref/rdp_train_set_16.fa.gz", multithread=10) ## CHANGE to directory and pertinent database
 colnames(taxHS) <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus")
 unname(head(taxHS))
 unname(tail(taxHS))
